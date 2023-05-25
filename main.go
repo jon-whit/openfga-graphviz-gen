@@ -13,31 +13,11 @@ import (
 	openfgav1 "go.buf.build/openfga/go/openfga/api/openfga/v1"
 )
 
-/*
-`
-
-	type user
-
-	type group
-	  relations
-	    define member: [user] as self
-
-	type folder
-	  relations
-	    define viewer: [user] as self
-
-	type document
-	  relations
-	    define parent: [folder] as self
-	    define editor: [user] as self
-	    define viewer: [user, group#member] as self or editor or viewer from parent
-	`
-*/
 func main() {
 	modelPathFlag := flag.String("model-path", "", "the file path for the OpenFGA model (in DSL format)")
-	// targetObjectTypeFlag := flag.String("target-object-type", "", "the target object type")
-	// targetRelationFlag := flag.String("target-relation", "", "the relation on the target object type")
-	// sourceUserObjectTypeFlag := flag.String("source-user-object-type", "", "the source user object type")
+	targetObjectTypeFlag := flag.String("target-object-type", "", "the target object type")
+	targetRelationFlag := flag.String("target-relation", "", "the relation on the target object type")
+	sourceUserObjectTypeFlag := flag.String("source-user-object-type", "", "the source user object type")
 
 	flag.Parse()
 
@@ -82,6 +62,16 @@ func main() {
 
 		typeNode.SetShape(cgraph.SquareShape)
 
+		if typeName == *targetObjectTypeFlag {
+			typeNode.SetColor("magenta")
+			typeNode.SetStyle(cgraph.FilledNodeStyle)
+		}
+
+		if typeName == *sourceUserObjectTypeFlag {
+			typeNode.SetColor("cyan")
+			typeNode.SetStyle(cgraph.FilledNodeStyle)
+		}
+
 		nodes[typeName] = typeNode
 
 		for relation, _ := range typedef.GetRelations() {
@@ -93,6 +83,11 @@ func main() {
 
 			relationNode.SetShape(cgraph.CircleShape)
 			relationNode.SetLabel(relation)
+
+			if typeName == *targetObjectTypeFlag && relation == *targetRelationFlag {
+				relationNode.SetColor("magenta")
+				relationNode.SetStyle(cgraph.FilledNodeStyle)
+			}
 
 			nodes[relationNodeName] = relationNode
 		}
