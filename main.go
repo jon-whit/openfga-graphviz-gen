@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -42,7 +43,7 @@ func main() {
 		g.Close()
 	}()
 
-	typesys, err := typesystem.NewAndValidate(&openfgav1.AuthorizationModel{
+	typesys, err := typesystem.NewAndValidate(context.Background(), &openfgav1.AuthorizationModel{
 		SchemaVersion:   typesystem.SchemaVersion1_1,
 		TypeDefinitions: typedefs,
 	})
@@ -75,7 +76,7 @@ func main() {
 		nodes[typeName] = typeNode
 
 		for relation, _ := range typedef.GetRelations() {
-			relationNodeName := fmt.Sprintf("%s_%s", typeName, relation)
+			relationNodeName := fmt.Sprintf("%s#%s", typeName, relation)
 			relationNode, err := graph.CreateNode(relationNodeName)
 			if err != nil {
 				log.Fatal(err)
@@ -97,15 +98,15 @@ func main() {
 		typeName := typedef.GetType()
 
 		for relation, rewrite := range typedef.GetRelations() {
-			relationNodeName := fmt.Sprintf("%s_%s", typeName, relation)
+			relationNodeName := fmt.Sprintf("%s#%s", typeName, relation)
 
-			edgeLabel := fmt.Sprintf("%s_%s", typeName, relation)
-			e, err := graph.CreateEdge(edgeLabel, nodes[typeName], nodes[relationNodeName])
+			edgeLabel := fmt.Sprintf("%s#%s", typeName, relation)
+			e, err := writeEdge(graph, nodes, typeName, relationNodeName, edgeLabel)
 			if err != nil {
-				log.Fatal(err)
+				log.Println(err)
+			} else {
+				e.SetDir(cgraph.BackDir)
 			}
-
-			e.SetDir(cgraph.BackDir)
 
 			assignableRelations, err := typesys.GetDirectlyRelatedUserTypes(typeName, relation)
 			if err != nil {
@@ -120,22 +121,22 @@ func main() {
 					if assignableRelationRef != "" {
 						edgeLabel := fmt.Sprintf("%s_%s_%s_%s", typeName, relation, assignableType, assignableRelationRef)
 
-						assignableRelationNodeName := fmt.Sprintf("%s_%s", assignableType, assignableRelationRef)
-						e, err := graph.CreateEdge(edgeLabel, nodes[relationNodeName], nodes[assignableRelationNodeName])
+						assignableRelationNodeName := fmt.Sprintf("%s#%s", assignableType, assignableRelationRef)
+						e, err := writeEdge(graph, nodes, relationNodeName, assignableRelationNodeName, edgeLabel)
 						if err != nil {
-							log.Fatal(err)
+							log.Println(err)
+						} else {
+							e.SetDir(cgraph.BackDir)
 						}
-
-						e.SetDir(cgraph.BackDir)
 					}
 				} else {
 					edgeLabel := fmt.Sprintf("%s_%s_%s", typeName, relation, assignableType)
-					e, err := graph.CreateEdge(edgeLabel, nodes[relationNodeName], nodes[assignableType])
+					e, err := writeEdge(graph, nodes, relationNodeName, assignableType, edgeLabel)
 					if err != nil {
-						log.Fatal(err)
+						log.Println(err)
+					} else {
+						e.SetDir(cgraph.BackDir)
 					}
-
-					e.SetDir(cgraph.BackDir)
 				}
 			}
 
@@ -150,15 +151,15 @@ func main() {
 						return err
 					}
 
-					rewrittenNodeName := fmt.Sprintf("%s_%s", typeName, rewritten.GetName())
+					rewrittenNodeName := fmt.Sprintf("%s#%s", typeName, rewritten.GetName())
 
-					e, err := graph.CreateEdge(edgeLabel, nodes[relationNodeName], nodes[rewrittenNodeName])
+					e, err := writeEdge(graph, nodes, relationNodeName, rewrittenNodeName, edgeLabel)
 					if err != nil {
-						log.Fatal(err)
+						log.Println(err)
+					} else {
+						e.SetDir(cgraph.BackDir)
+						e.SetStyle(cgraph.DottedEdgeStyle)
 					}
-
-					e.SetDir(cgraph.BackDir)
-					e.SetStyle(cgraph.DottedEdgeStyle)
 
 					return nil
 
@@ -176,17 +177,16 @@ func main() {
 
 						assignableType := relatedType.GetType()
 
-						rewrittenRelationNodeName := fmt.Sprintf("%s_%s", assignableType, rewrittenRelation)
+						rewrittenRelationNodeName := fmt.Sprintf("%s#%s", assignableType, rewrittenRelation)
 
-						edgeLabel := fmt.Sprintf("%s_%s_%s", typeName, relation, assignableType, rewrittenRelation)
-						e, err := graph.CreateEdge(edgeLabel, nodes[relationNodeName], nodes[rewrittenRelationNodeName])
+						edgeLabel := fmt.Sprintf("%s_%s_%s_%s", typeName, relation, assignableType, rewrittenRelation)
+						e, err := writeEdge(graph, nodes, relationNodeName, rewrittenRelationNodeName, edgeLabel)
 						if err != nil {
-							log.Fatal(err)
+							log.Println(err)
+						} else {
+							e.SetDir(cgraph.BackDir)
+							e.SetStyle(cgraph.DashedEdgeStyle)
 						}
-
-						e.SetDir(cgraph.BackDir)
-						e.SetStyle(cgraph.DashedEdgeStyle)
-
 					}
 
 					return nil
@@ -210,4 +210,14 @@ func main() {
 	if err := g.RenderFilename(graph, graphviz.PNG, "graph.png"); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func writeEdge(graph *cgraph.Graph, nodes map[string]*cgraph.Node, from string, to string, label string) (*cgraph.Edge, error) {
+	if _, ok := nodes[from]; !ok {
+		return nil, fmt.Errorf("not found: %v", from)
+	}
+	if _, ok := nodes[to]; !ok {
+		return nil, fmt.Errorf("not found: %v", to)
+	}
+	return graph.CreateEdge(label, nodes[from], nodes[to])
 }
