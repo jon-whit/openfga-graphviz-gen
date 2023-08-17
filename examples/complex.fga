@@ -1,0 +1,12 @@
+type user
+type group
+  relations
+    define member: [user, group#member] as self
+type folder
+  relations
+    define viewer: [user] as self
+type document
+  relations
+    define parent: [folder] as self
+    define editor: [user] as self
+    define viewer: [user, user:*, group#member] as self or editor or viewer from parent

@@ -1,0 +1,7 @@
+type user
+type group
+   relations
+     define member: [user, document#viewer] as self
+type document
+   relations
+     define viewer: [user, group#member] as self

@@ -1,0 +1,7 @@
+type user
+type document
+  relations
+    define a: [user] as self
+    define b: [user] as self
+    define c as a and b
+

@@ -1,0 +1,10 @@
+type user
+type group
+  relations
+    define viewer: [user] as self
+type folder
+  relations
+    define writer: [user] as self
+    define parent: [folder, group] as self
+    define viewer as writer from parent
+
