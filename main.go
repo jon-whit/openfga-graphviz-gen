@@ -8,7 +8,6 @@ import (
 	"log"
 	"os"
 	"sort"
-	"strings"
 
 	parser "github.com/craigpastro/openfga-dsl-parser/v2"
 	"github.com/dominikbraun/graph"
@@ -153,23 +152,18 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g graph.Graph[string, string
 			return nil
 		case *openfgav1.Userset_TupleToUserset:
 			tupleset := rw.TupleToUserset.GetTupleset().GetRelation()
-			rewrittenRelation := rw.TupleToUserset.ComputedUserset.GetRelation()
+			rewrittenRelation := rw.TupleToUserset.GetComputedUserset().GetRelation()
 
 			tuplesetRel, err := typesys.GetRelation(typeName, tupleset)
 			if err != nil {
 				return err
 			}
 
-			var edgeLabels []string
 			directlyRelatedTypes := tuplesetRel.GetTypeInfo().GetDirectlyRelatedUserTypes()
 			for _, relatedType := range directlyRelatedTypes {
-				assignableType := relatedType.GetType()
-				edgeLabels = append(edgeLabels, fmt.Sprintf("%s#%s", assignableType, tupleset))
-			}
-
-			if len(edgeLabels) > 0 {
-				rewrittenNodeName := fmt.Sprintf("%s#%s", typeName, rewrittenRelation)
-				edgeLabelAttribute := graph.EdgeAttribute("label", strings.Join(edgeLabels, ", "))
+				rewrittenNodeName := fmt.Sprintf("%s#%s", relatedType.GetType(), rewrittenRelation)
+				conditionedOnNodeName := fmt.Sprintf("%s#%s", typeName, tuplesetRel.GetName())
+				edgeLabelAttribute := graph.EdgeAttribute("label", conditionedOnNodeName)
 
 				err := addEdge(g, rewrittenNodeName, relationNodeName, edgeLabelAttribute)
 				if err != nil {
