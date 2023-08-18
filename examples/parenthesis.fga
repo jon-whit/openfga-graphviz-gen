@@ -1,0 +1,7 @@
+type user
+type folder
+  relations
+    define a: [user] as self
+    define b: [user] as self
+    define c: [user] as self
+    define viewer as (a or b) and c
