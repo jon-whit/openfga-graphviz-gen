@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"sort"
+	"strconv"
 
 	parser "github.com/craigpastro/openfga-dsl-parser/v2"
 	"github.com/dominikbraun/graph"
@@ -17,6 +18,7 @@ import (
 )
 
 var (
+	edgeCounter     = 0
 	styleAttrDashed = graph.EdgeAttribute("style", "dashed")
 )
 
@@ -38,6 +40,9 @@ func addEdge(g graph.Graph[string, string], from, to string, options ...func(*gr
 	if _, err := g.Vertex(to); err != nil {
 		return addNode(g, to)
 	}
+
+	edgeCounter++
+	options = append(options, graph.EdgeAttribute("label", strconv.Itoa(edgeCounter)))
 
 	_, err := g.Edge(from, to)
 	if err == graph.ErrEdgeNotFound {
@@ -162,8 +167,8 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g graph.Graph[string, string
 			directlyRelatedTypes := tuplesetRel.GetTypeInfo().GetDirectlyRelatedUserTypes()
 			for _, relatedType := range directlyRelatedTypes {
 				rewrittenNodeName := fmt.Sprintf("%s#%s", relatedType.GetType(), rewrittenRelation)
-				conditionedOnNodeName := fmt.Sprintf("%s#%s", typeName, tuplesetRel.GetName())
-				edgeLabelAttribute := graph.EdgeAttribute("label", conditionedOnNodeName)
+				conditionedOnNodeName := fmt.Sprintf("(%s#%s)", typeName, tuplesetRel.GetName())
+				edgeLabelAttribute := graph.EdgeAttribute("headlabel", conditionedOnNodeName)
 
 				err := addEdge(g, rewrittenNodeName, relationNodeName, edgeLabelAttribute)
 				if err != nil {
