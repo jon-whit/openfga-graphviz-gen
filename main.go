@@ -69,6 +69,7 @@ func buildGraph(typedefs []*openfgav1.TypeDefinition) (graph.Graph[string, strin
 		return nil, err
 	}
 
+	// sort type names to guarantee stable outcome
 	sort.Slice(typedefs, func(i, j int) bool {
 		return typedefs[i].GetType() < typedefs[j].GetType()
 	})
@@ -86,7 +87,15 @@ func buildGraph(typedefs []*openfgav1.TypeDefinition) (graph.Graph[string, strin
 			return nil, err
 		}
 
-		for relation, rewrite := range typedef.GetRelations() {
+		// sort relation names to guarantee stable outcome
+		sortedRelationNames := make([]string, 0, len(typedef.GetRelations()))
+		for key := range typedef.GetRelations() {
+			sortedRelationNames = append(sortedRelationNames, key)
+		}
+		sort.Strings(sortedRelationNames)
+
+		for _, relation := range sortedRelationNames {
+			rewrite := typedef.GetRelations()[relation]
 			relationNodeName := fmt.Sprintf("%s#%s", typeName, relation)
 			if err := addNode(g, relationNodeName); err != nil {
 				return nil, err
