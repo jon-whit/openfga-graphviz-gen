@@ -41,11 +41,10 @@ func addEdge(g graph.Graph[string, string], from, to string, options ...func(*gr
 		return addNode(g, to)
 	}
 
-	edgeCounter++
-	options = append(options, graph.EdgeAttribute("label", strconv.Itoa(edgeCounter)))
-
 	_, err := g.Edge(from, to)
 	if err == graph.ErrEdgeNotFound {
+		edgeCounter++
+		options = append(options, graph.EdgeAttribute("label", strconv.Itoa(edgeCounter)))
 		if err = g.AddEdge(from, to, options...); err != nil {
 			log.Println(err)
 			return err
