@@ -137,7 +137,7 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g graph.Graph[string, string
 
 					wildcardRelationRef := assignableRelation.GetWildcard()
 					if wildcardRelationRef != nil {
-						wildcardRelationNodeName := fmt.Sprintf("%s:*", assignableType)
+						wildcardRelationNodeName := fmt.Sprintf("%s or %s:*", assignableType, assignableType)
 
 						if err := addEdge(g, wildcardRelationNodeName, relationNodeName); err != nil {
 							return err
