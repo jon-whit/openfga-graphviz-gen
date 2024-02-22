@@ -136,6 +136,38 @@ func TestWriter(t *testing.T) {
 	"document#viewer" [  weight=0 ];
 }`,
 		},
+		`multigraph`: {
+			inputModel: `
+				model
+				  schema 1.1
+				
+				type user
+				
+				type state
+				  relations
+					define can_view: [user]
+				
+				type transition
+				  relations
+					define start: [state]
+					define end: [state]
+					define can_apply: [user] and can_view from start and can_view from end`,
+			expectedOutput: `strict digraph {
+	rankdir="BT";
+	"transition#start" [  weight=0 ];
+	"transition#can_apply" [  weight=0 ];
+	"transition#end" [  weight=0 ];
+	"state" [  weight=0 ];
+	"state" -> "transition#start" [ label="5",  weight=0 ];
+	"state" -> "transition#end" [ label="4",  weight=0 ];
+	"state#can_view" [  weight=0 ];
+	"state#can_view" -> "transition#can_apply" [ headlabel="(transition#end)", label="3",  weight=0 ];
+	"state#can_view" -> "transition#can_apply" [ headlabel="(transition#start)", label="6",  weight=0 ];
+	"user" [  weight=0 ];
+	"user" -> "state#can_view" [ label="1",  weight=0 ];
+	"user" -> "transition#can_apply" [ label="2",  weight=0 ];
+}`,
+		},
 	}
 
 	for name, test := range testCases {
