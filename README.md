@@ -6,8 +6,8 @@ Generate graphviz diagrams from an OpenFGA authorization model definition.
 
 To print the model: 
 
-`go run main.go --model-path <path>`
+`make build && ./openfga-graphviz-gen --model-path <path>`
 
 To generate a PNG of the model:
 
-`go run main.go --model-path <path> | dot -Tpng > model.png`
+`make build && ./openfga-graphviz-gen --model-path <path> | dot -Tpng > model.png`
