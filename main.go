@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -61,10 +60,10 @@ func addEdge(g graph.Graph[string, string], from, to string, options ...func(*gr
 }
 
 func buildGraph(model *openfgav1.AuthorizationModel) (graph.Graph[string, string], error) {
-	typesys, err := typesystem.NewAndValidate(context.Background(), model)
-	if err != nil {
-		return nil, err
-	}
+	typesys := typesystem.New(model)
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	// sort type names to guarantee stable outcome
 	sort.SliceStable(model.GetTypeDefinitions(), func(i, j int) bool {
@@ -98,7 +97,7 @@ func buildGraph(model *openfgav1.AuthorizationModel) (graph.Graph[string, string
 				return nil, err
 			}
 
-			_, err = typesystem.WalkUsersetRewrite(rewrite, rewriteHandler(typesys, g, typeName, relation))
+			_, err := typesystem.WalkUsersetRewrite(rewrite, rewriteHandler(typesys, g, typeName, relation))
 			if err != nil {
 				return nil, fmt.Errorf("failed to WalkUsersetRewrite tree: %v", err)
 			}
