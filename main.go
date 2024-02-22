@@ -1,19 +1,19 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 
-	parser "github.com/craigpastro/openfga-dsl-parser/v2"
 	"github.com/dominikbraun/graph"
 	"github.com/dominikbraun/graph/draw"
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
+	parser "github.com/openfga/language/pkg/go/transformer"
 	"github.com/openfga/openfga/pkg/typesystem"
 )
 
@@ -59,23 +59,20 @@ func addEdge(g graph.Graph[string, string], from, to string, options ...func(*gr
 	return nil
 }
 
-func buildGraph(typedefs []*openfgav1.TypeDefinition) (graph.Graph[string, string], error) {
-	typesys, err := typesystem.NewAndValidate(context.Background(), &openfgav1.AuthorizationModel{
-		SchemaVersion:   typesystem.SchemaVersion1_1,
-		TypeDefinitions: typedefs,
-	})
-	if err != nil {
-		return nil, err
-	}
+func buildGraph(model *openfgav1.AuthorizationModel) (graph.Graph[string, string], error) {
+	typesys := typesystem.New(model)
+	//if err != nil {
+	//	return nil, err
+	//}
 
 	// sort type names to guarantee stable outcome
-	sort.Slice(typedefs, func(i, j int) bool {
-		return typedefs[i].GetType() < typedefs[j].GetType()
+	sort.SliceStable(model.GetTypeDefinitions(), func(i, j int) bool {
+		return slices.IsSorted([]string{model.GetTypeDefinitions()[i].Type, model.GetTypeDefinitions()[j].Type})
 	})
 
 	g := graph.New(graph.StringHash, graph.Directed())
 
-	for _, typedef := range typedefs {
+	for _, typedef := range model.GetTypeDefinitions() {
 		typeName := typedef.GetType()
 
 		if err := addNode(g, typeName); err != nil {
@@ -100,7 +97,7 @@ func buildGraph(typedefs []*openfgav1.TypeDefinition) (graph.Graph[string, strin
 				return nil, err
 			}
 
-			_, err = typesystem.WalkUsersetRewrite(rewrite, rewriteHandler(typesys, g, typeName, relation))
+			_, err := typesystem.WalkUsersetRewrite(rewrite, rewriteHandler(typesys, g, typeName, relation))
 			if err != nil {
 				return nil, fmt.Errorf("failed to WalkUsersetRewrite tree: %v", err)
 			}
@@ -123,6 +120,10 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g graph.Graph[string, string
 
 			for _, assignableRelation := range assignableRelations {
 				assignableType := assignableRelation.GetType()
+				conditionName := assignableRelation.GetCondition()
+				if conditionName != "" {
+					assignableType = fmt.Sprintf(" %s[with %s]", assignableType, conditionName)
+				}
 
 				if assignableRelation.GetRelationOrWildcard() != nil {
 					assignableRelationRef := assignableRelation.GetRelation()
@@ -136,7 +137,7 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g graph.Graph[string, string
 
 					wildcardRelationRef := assignableRelation.GetWildcard()
 					if wildcardRelationRef != nil {
-						wildcardRelationNodeName := fmt.Sprintf("%s or %s:*", assignableType, assignableType)
+						wildcardRelationNodeName := fmt.Sprintf("%s:*", assignableType)
 
 						if err := addEdge(g, wildcardRelationNodeName, relationNodeName); err != nil {
 							return err
@@ -174,7 +175,12 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g graph.Graph[string, string
 
 			directlyRelatedTypes := tuplesetRel.GetTypeInfo().GetDirectlyRelatedUserTypes()
 			for _, relatedType := range directlyRelatedTypes {
-				rewrittenNodeName := fmt.Sprintf("%s#%s", relatedType.GetType(), rewrittenRelation)
+				assignableType := relatedType.GetType()
+				conditionName := relatedType.GetCondition()
+				if conditionName != "" {
+					assignableType = fmt.Sprintf(" %s[with %s]", assignableType, conditionName)
+				}
+				rewrittenNodeName := fmt.Sprintf("%s#%s", assignableType, rewrittenRelation)
 				conditionedOnNodeName := fmt.Sprintf("(%s#%s)", typeName, tuplesetRel.GetName())
 				edgeLabelAttribute := graph.EdgeAttribute("headlabel", conditionedOnNodeName)
 
@@ -225,9 +231,9 @@ func main() {
 		log.Fatalf("failed to read model file: %v", err)
 	}
 
-	typedefs := parser.MustParse(string(bytes))
+	model := parser.MustTransformDSLToProto(string(bytes))
 
-	g, err := buildGraph(typedefs)
+	g, err := buildGraph(model)
 	if err != nil {
 		log.Fatalf("failed to build graph: %v", err)
 	}
