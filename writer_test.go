@@ -33,26 +33,62 @@ func TestWriter(t *testing.T) {
 					define parent: [folder]
 					define editor: [user]
 					define viewer: [user, user:*, group#member] or editor or viewer from parent`,
-			expectedOutput: `strict digraph {
-	rankdir="BT";
-	"group#member" [  weight=0 ];
-	"group#member" -> "document#viewer" [ label="5",  weight=0 ];
-	"group#member" -> "group#member" [ label="10",  weight=0 ];
-	"folder" [  weight=0 ];
-	"folder" -> "document#parent" [ label="2",  weight=0 ];
-	"folder#viewer" [  weight=0 ];
-	"folder#viewer" -> "document#viewer" [ headlabel="(document#parent)", label="7",  weight=0 ];
-	"document#editor" [  weight=0 ];
-	"document#editor" -> "document#viewer" [ label="6",  weight=0 ];
-	"document#viewer" [  weight=0 ];
-	"user:*" [  weight=0 ];
-	"user:*" -> "document#viewer" [ label="4",  weight=0 ];
-	"user" [  weight=0 ];
-	"user" -> "document#editor" [ label="1",  weight=0 ];
-	"user" -> "document#viewer" [ label="3",  weight=0 ];
-	"user" -> "folder#viewer" [ label="8",  weight=0 ];
-	"user" -> "group#member" [ label="9",  weight=0 ];
-	"document#parent" [  weight=0 ];
+			expectedOutput: `digraph {
+graph [
+rankdir=BT
+];
+
+// Node definitions.
+2 [label="document#editor"];
+3 [label=user];
+4 [label="document#parent"];
+5 [label=folder];
+6 [label="document#viewer"];
+7 [label="user:*"];
+8 [label="group#member"];
+9 [label="folder#viewer"];
+
+// Edge definitions.
+2 -> 6 [
+label=6
+headlabel=""
+];
+3 -> 2 [
+label=1
+headlabel=""
+];
+3 -> 6 [
+label=3
+headlabel=""
+];
+3 -> 8 [
+label=9
+headlabel=""
+];
+3 -> 9 [
+label=8
+headlabel=""
+];
+5 -> 4 [
+label=2
+headlabel=""
+];
+7 -> 6 [
+label=4
+headlabel=""
+];
+8 -> 6 [
+label=5
+headlabel=""
+];
+8 -> 8 [
+label=10
+headlabel=""
+];
+9 -> 6 [
+label=7
+headlabel="(document#parent)"
+];
 }`,
 		},
 		`with_intersection`: { // https://github.com/openfga/openfga/blob/main/docs/list_objects/example_with_intersection_or_exclusion/example.md
@@ -65,16 +101,34 @@ func TestWriter(t *testing.T) {
 					 define a: [user]
 					 define b: [user]
 					 define c: a and b`,
-			expectedOutput: `strict digraph {
-	rankdir="BT";
-	"document#c" [  weight=0 ];
-	"document#a" [  weight=0 ];
-	"document#a" -> "document#c" [ label="3", style="dashed",  weight=0 ];
-	"user" [  weight=0 ];
-	"user" -> "document#a" [ label="1",  weight=0 ];
-	"user" -> "document#b" [ label="2",  weight=0 ];
-	"document#b" [  weight=0 ];
-	"document#b" -> "document#c" [ label="4", style="dashed",  weight=0 ];
+			expectedOutput: `digraph {
+graph [
+rankdir=BT
+];
+
+// Node definitions.
+2 [label="document#a"];
+3 [label=user];
+4 [label="document#b"];
+5 [label="document#c"];
+
+// Edge definitions.
+2 -> 5 [
+label=3
+headlabel=""
+];
+3 -> 2 [
+label=1
+headlabel=""
+];
+3 -> 4 [
+label=2
+headlabel=""
+];
+4 -> 5 [
+label=4
+headlabel=""
+];
 }`,
 		},
 		`with_exclusion`: { // https://github.com/openfga/openfga/blob/main/docs/list_objects/example_with_intersection_or_exclusion/example.md
@@ -87,16 +141,34 @@ func TestWriter(t *testing.T) {
 					 define a: [user]
 					 define b: [user]
 					 define c: a but not b`,
-			expectedOutput: `strict digraph {
-	rankdir="BT";
-	"document#c" [  weight=0 ];
-	"document#a" [  weight=0 ];
-	"document#a" -> "document#c" [ label="3",  weight=0 ];
-	"user" [  weight=0 ];
-	"user" -> "document#a" [ label="1",  weight=0 ];
-	"user" -> "document#b" [ label="2",  weight=0 ];
-	"document#b" [  weight=0 ];
-	"document#b" -> "document#c" [ label="4",  weight=0 ];
+			expectedOutput: `digraph {
+graph [
+rankdir=BT
+];
+
+// Node definitions.
+2 [label="document#a"];
+3 [label=user];
+4 [label="document#b"];
+5 [label="document#c"];
+
+// Edge definitions.
+2 -> 5 [
+headlabel=""
+label=3
+];
+3 -> 2 [
+label=1
+headlabel=""
+];
+3 -> 4 [
+label=2
+headlabel=""
+];
+4 -> 5 [
+label=4
+headlabel=""
+];
 }`,
 		},
 		`with_conditions`: {
@@ -123,17 +195,32 @@ func TestWriter(t *testing.T) {
 			condition condition3(x: int) {
 				x < 100
 			}`,
-			expectedOutput: `strict digraph {
-	rankdir="BT";
-	" user[with condition2]" [  weight=0 ];
-	" user[with condition2]" -> "document#writer" [ label="3",  weight=0 ];
-	"document#writer" [  weight=0 ];
-	"document#admin" [  weight=0 ];
-	" user[with condition1]" [  weight=0 ];
-	" user[with condition1]" -> "document#admin" [ label="1",  weight=0 ];
-	" user[with condition3]:*" [  weight=0 ];
-	" user[with condition3]:*" -> "document#viewer" [ label="2",  weight=0 ];
-	"document#viewer" [  weight=0 ];
+			expectedOutput: `digraph {
+graph [
+rankdir=BT
+];
+
+// Node definitions.
+2 [label="document#admin"];
+3 [label=" user[with condition1]"];
+4 [label="document#viewer"];
+5 [label=" user[with condition3]:*"];
+6 [label="document#writer"];
+7 [label=" user[with condition2]"];
+
+// Edge definitions.
+3 -> 2 [
+label=1
+headlabel=""
+];
+5 -> 4 [
+label=2
+headlabel=""
+];
+7 -> 6 [
+label=3
+headlabel=""
+];
 }`,
 		},
 		`multigraph`: {
@@ -152,27 +239,50 @@ func TestWriter(t *testing.T) {
 					define start: [state]
 					define end: [state]
 					define can_apply: [user] and can_view from start and can_view from end`,
-			expectedOutput: `strict digraph {
-	rankdir="BT";
-	"transition#start" [  weight=0 ];
-	"transition#can_apply" [  weight=0 ];
-	"transition#end" [  weight=0 ];
-	"state" [  weight=0 ];
-	"state" -> "transition#start" [ label="5",  weight=0 ];
-	"state" -> "transition#end" [ label="4",  weight=0 ];
-	"state#can_view" [  weight=0 ];
-	"state#can_view" -> "transition#can_apply" [ headlabel="(transition#end)", label="3",  weight=0 ];
-	"state#can_view" -> "transition#can_apply" [ headlabel="(transition#start)", label="6",  weight=0 ];
-	"user" [  weight=0 ];
-	"user" -> "state#can_view" [ label="1",  weight=0 ];
-	"user" -> "transition#can_apply" [ label="2",  weight=0 ];
+			expectedOutput: `digraph {
+graph [
+rankdir=BT
+];
+
+// Node definitions.
+0 [label=state];
+2 [label="state#can_view"];
+3 [label=user];
+6 [label="transition#can_apply"];
+7 [label="transition#end"];
+8 [label="transition#start"];
+
+// Edge definitions.
+0 -> 7 [
+label=5
+headlabel=""
+];
+0 -> 8 [
+headlabel=""
+label=6
+];
+2 -> 6 [
+label=3
+headlabel="(transition#start)"
+];
+2 -> 6 [
+label=4
+headlabel="(transition#end)"
+];
+3 -> 2 [
+label=1
+headlabel=""
+];
+3 -> 6 [
+label=2
+headlabel=""
+];
 }`,
 		},
 	}
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
-			edgeCounter = 0
 			actual := Writer(test.inputModel)
 			actualSorted := getSorted(actual)
 			expectedSorted := getSorted(test.expectedOutput)

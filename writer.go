@@ -1,66 +1,18 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"slices"
 	"sort"
-	"strconv"
 
-	"github.com/dominikbraun/graph"
-	"github.com/dominikbraun/graph/draw"
 	openfgav1 "github.com/openfga/api/proto/openfga/v1"
 	parser "github.com/openfga/language/pkg/go/transformer"
 	"github.com/openfga/openfga/pkg/typesystem"
+	"gonum.org/v1/gonum/graph/encoding/dot"
 )
 
-var (
-	// TODO no global variable
-	edgeCounter = 0
-
-	// for computed usersets
-	styleAttrDashed = graph.EdgeAttribute("style", "dashed")
-)
-
-func addNode(g graph.Graph[string, string], v string) error {
-	err := g.AddVertex(v)
-	if err != nil && err != graph.ErrVertexAlreadyExists {
-		log.Println(err)
-		return err
-	}
-
-	return nil
-}
-
-func addEdge(g graph.Graph[string, string], from, to string, options ...func(*graph.EdgeProperties)) error {
-	if _, err := g.Vertex(from); err != nil {
-		return addNode(g, from)
-	}
-
-	if _, err := g.Vertex(to); err != nil {
-		return addNode(g, to)
-	}
-
-	_, err := g.Edge(from, to)
-	if err == graph.ErrEdgeNotFound {
-		edgeCounter++
-		options = append(options, graph.EdgeAttribute("label", strconv.Itoa(edgeCounter)))
-		if err = g.AddEdge(from, to, options...); err != nil {
-			log.Println(err)
-			return err
-		}
-	}
-
-	if err = g.UpdateEdge(from, to, options...); err != nil {
-		log.Println(err)
-		return err
-	}
-
-	return nil
-}
-
-func buildGraph(model *openfgav1.AuthorizationModel) (graph.Graph[string, string], error) {
+func buildGraph(model *openfgav1.AuthorizationModel) *dotEncodingGraph {
 	typesys := typesystem.New(model)
 
 	// sort type names to guarantee stable outcome
@@ -68,18 +20,13 @@ func buildGraph(model *openfgav1.AuthorizationModel) (graph.Graph[string, string
 		return slices.IsSorted([]string{model.GetTypeDefinitions()[i].Type, model.GetTypeDefinitions()[j].Type})
 	})
 
-	g := graph.New(graph.StringHash, graph.Directed())
+	g := newDotEncodingGraph()
 
 	for _, typedef := range model.GetTypeDefinitions() {
 		typeName := typedef.GetType()
 
-		if err := addNode(g, typeName); err != nil {
-			return nil, err
-		}
-
-		if err := addNode(g, typeName+":*"); err != nil {
-			return nil, err
-		}
+		g.AddOrGetNode(typeName)
+		g.AddOrGetNode(typeName + ":*")
 
 		// sort relation names to guarantee stable outcome
 		sortedRelationNames := make([]string, 0, len(typedef.GetRelations()))
@@ -89,23 +36,19 @@ func buildGraph(model *openfgav1.AuthorizationModel) (graph.Graph[string, string
 		sort.Strings(sortedRelationNames)
 
 		for _, relation := range sortedRelationNames {
-			rewrite := typedef.GetRelations()[relation]
-			relationNodeName := fmt.Sprintf("%s#%s", typeName, relation)
-			if err := addNode(g, relationNodeName); err != nil {
-				return nil, err
-			}
+			g.AddOrGetNode(fmt.Sprintf("%s#%s", typeName, relation))
 
-			_, err := typesystem.WalkUsersetRewrite(rewrite, rewriteHandler(typesys, g, typeName, relation))
-			if err != nil {
-				return nil, fmt.Errorf("failed to WalkUsersetRewrite tree: %v", err)
+			rewrite := typedef.GetRelations()[relation]
+			if _, err := typesystem.WalkUsersetRewrite(rewrite, rewriteHandler(typesys, g, typeName, relation)); err != nil {
+				panic(err)
 			}
 		}
 	}
 
-	return g, nil
+	return g
 }
 
-func rewriteHandler(typesys *typesystem.TypeSystem, g graph.Graph[string, string], typeName, relation string) typesystem.WalkUsersetRewriteHandler {
+func rewriteHandler(typesys *typesystem.TypeSystem, g *dotEncodingGraph, typeName, relation string) typesystem.WalkUsersetRewriteHandler {
 	relationNodeName := fmt.Sprintf("%s#%s", typeName, relation)
 
 	return func(r *openfgav1.Userset) interface{} {
@@ -113,7 +56,7 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g graph.Graph[string, string
 		case *openfgav1.Userset_This:
 			assignableRelations, err := typesys.GetDirectlyRelatedUserTypes(typeName, relation)
 			if err != nil {
-				return err
+				panic(err)
 			}
 
 			for _, assignableRelation := range assignableRelations {
@@ -128,23 +71,17 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g graph.Graph[string, string
 					if assignableRelationRef != "" {
 						assignableRelationNodeName := fmt.Sprintf("%s#%s", assignableType, assignableRelationRef)
 
-						if err := addEdge(g, assignableRelationNodeName, relationNodeName); err != nil {
-							return err
-						}
+						g.AddEdge(assignableRelationNodeName, relationNodeName, "")
 					}
 
 					wildcardRelationRef := assignableRelation.GetWildcard()
 					if wildcardRelationRef != nil {
 						wildcardRelationNodeName := fmt.Sprintf("%s:*", assignableType)
 
-						if err := addEdge(g, wildcardRelationNodeName, relationNodeName); err != nil {
-							return err
-						}
+						g.AddEdge(wildcardRelationNodeName, relationNodeName, "")
 					}
 				} else {
-					if err := addEdge(g, assignableType, relationNodeName); err != nil {
-						return err
-					}
+					g.AddEdge(assignableType, relationNodeName, "")
 				}
 			}
 
@@ -153,13 +90,11 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g graph.Graph[string, string
 			rewrittenRelation := rw.ComputedUserset.GetRelation()
 			rewritten, err := typesys.GetRelation(typeName, rewrittenRelation)
 			if err != nil {
-				return err
+				panic(err)
 			}
 
 			rewrittenNodeName := fmt.Sprintf("%s#%s", typeName, rewritten.GetName())
-			if err := addEdge(g, rewrittenNodeName, relationNodeName); err != nil {
-				return err
-			}
+			g.AddEdge(rewrittenNodeName, relationNodeName, "")
 
 			return nil
 		case *openfgav1.Userset_TupleToUserset:
@@ -168,7 +103,7 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g graph.Graph[string, string
 
 			tuplesetRel, err := typesys.GetRelation(typeName, tupleset)
 			if err != nil {
-				return err
+				panic(err)
 			}
 
 			directlyRelatedTypes := tuplesetRel.GetTypeInfo().GetDirectlyRelatedUserTypes()
@@ -180,12 +115,8 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g graph.Graph[string, string
 				}
 				rewrittenNodeName := fmt.Sprintf("%s#%s", assignableType, rewrittenRelation)
 				conditionedOnNodeName := fmt.Sprintf("(%s#%s)", typeName, tuplesetRel.GetName())
-				edgeLabelAttribute := graph.EdgeAttribute("headlabel", conditionedOnNodeName)
 
-				err := addEdge(g, rewrittenNodeName, relationNodeName, edgeLabelAttribute)
-				if err != nil {
-					return err
-				}
+				g.AddEdge(rewrittenNodeName, relationNodeName, conditionedOnNodeName)
 			}
 
 			return nil
@@ -200,20 +131,18 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g graph.Graph[string, string
 					rewrittenRelation := childrw.ComputedUserset.GetRelation()
 					rewritten, err := typesys.GetRelation(typeName, rewrittenRelation)
 					if err != nil {
-						return err
+						panic(err)
 					}
 
 					rewrittenNodeName := fmt.Sprintf("%s#%s", typeName, rewritten.GetName())
-					if err := addEdge(g, rewrittenNodeName, relationNodeName, styleAttrDashed); err != nil {
-						return err
-					}
+					g.AddEdge(rewrittenNodeName, relationNodeName, "")
 				}
 			}
 			return nil
 		case *openfgav1.Userset_Difference:
 			return nil
 		default:
-			return fmt.Errorf("unexpected userset rewrite type encountered")
+			panic("unexpected userset rewrite type encountered")
 		}
 	}
 }
@@ -221,28 +150,14 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g graph.Graph[string, string
 func Writer(modelString string) string {
 	model := parser.MustTransformDSLToProto(modelString)
 
-	g, err := buildGraph(model)
-	if err != nil {
-		log.Fatalf("failed to build graph: %v", err)
-	}
+	g := buildGraph(model)
 
-	adjMap, err := g.AdjacencyMap()
-	if err != nil {
-		log.Fatalf("failed to compute adjacency map: %v", err)
-	}
+	g.RemoveNodesWithNoEdges()
 
-	// remove vertices with no edges
-	for k, v := range adjMap {
-		if len(v) == 0 {
-			_ = g.RemoveVertex(k)
-		}
-	}
-
-	var writer bytes.Buffer
-	err = draw.DOT(g, &writer, draw.GraphAttribute("rankdir", "BT"))
+	multi, err := dot.MarshalMulti(g, "", "", "")
 	if err != nil {
 		log.Fatalf("failed to render graph: %v", err)
 	}
 
-	return writer.String()
+	return string(multi)
 }
