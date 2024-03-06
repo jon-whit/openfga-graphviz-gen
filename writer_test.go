@@ -1,15 +1,17 @@
 package main
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestWriter(t *testing.T) {
+func TestWriter_DOT(t *testing.T) {
 	testCases := map[string]struct {
 		inputModel     string
 		expectedOutput string
@@ -283,12 +285,166 @@ headlabel=""
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
-			actual := Writer(test.inputModel)
-			actualSorted := getSorted(actual)
+			actualDOT, _ := Writer(test.inputModel)
+			actualSorted := getSorted(actualDOT)
 			expectedSorted := getSorted(test.expectedOutput)
 			diff := cmp.Diff(expectedSorted, actualSorted)
 
-			require.Empty(t, diff, "expected %s, got %s", test.expectedOutput, actual)
+			require.Empty(t, diff, "expected %s, got %s", test.expectedOutput, actualDOT)
+		})
+	}
+}
+
+func TestWriter_Cycles(t *testing.T) {
+	testCases := map[string]struct {
+		model    string
+		expected bool
+	}{
+		`computed_userset_1`: {
+			model: `
+				model
+					schema 1.1
+				type resource
+					relations
+						define a: b
+						define b: a`,
+			expected: true,
+		},
+		`computed_userset_2`: {
+			model: `
+				model
+					schema 1.1
+				type resource
+					relations
+						define x: y
+						define y: z
+						define z: x`,
+			expected: true,
+		},
+		`union_1`: {
+			model: `
+				model
+					schema 1.1
+				type user
+				type resource
+					relations
+						define x: [user] or y
+						define y: [user] or z
+						define z: [user] or x`,
+			expected: true,
+		},
+		`union_2`: {
+			model: `
+				model
+					schema 1.1
+				type user
+				type resource
+					relations
+						define x: [user] or y
+						define y: [user] or z
+						define z: [user] or x`,
+			expected: true,
+		},
+		`union_3`: {
+			model: `
+				model
+					schema 1.1
+				type user
+				type resource
+				  relations
+					define member: [user] or memberA or memberB or memberC
+					define memberA: [user] or member or memberB or memberC
+					define memberB: [user] or member or memberA or memberC
+					define memberC: [user] or member or memberA or memberB`,
+			expected: true,
+		},
+		`union_4`: {
+			model: `
+			model
+				schema 1.1
+			type user
+			type resource
+				relations
+					define admin: [user] or member or super_admin or owner
+					define member: [user] or owner or admin or super_admin
+					define super_admin: [user] or admin or member or owner
+					define owner: [user]`,
+			expected: true,
+		},
+		`union_5`: {
+			model: `
+				model
+					schema 1.1
+				type user
+				type resource
+					relations
+						define admin: [user] or member or super_admin or owner
+						define member: [user] or owner or admin or super_admin
+						define super_admin: [user] or admin or member or owner
+						define owner: [user]`,
+			expected: true,
+		},
+		`union_6`: {
+			model: `
+				model
+					schema 1.1
+				type user
+				type document
+					relations
+						define editor: [user]
+						define viewer: [document#viewer] or editor`,
+			expected: false,
+		},
+		`intersection_and_union`: {
+			model: `
+				model
+					schema 1.1
+				type user
+				type resource
+					relations
+						define x: [user] and y
+						define y: [user] and z
+						define z: [user] or x`,
+			expected: true,
+		},
+		`exclusion_and_union`: {
+			model: `
+				model
+					schema 1.1
+				type user
+				type resource
+					relations
+						define x: [user] but not y
+						define y: [user] but not z
+						define z: [user] or x`,
+			expected: true,
+		},
+		`many_circular_computed_relations`: {
+			model: `
+				model
+					schema 1.1
+				type user
+				type canvas
+					relations
+						define can_edit: editor or owner
+						define editor: [user, account#member]
+						define owner: [user]
+						define viewer: [user, account#member]
+				type account
+					relations
+						define admin: [user] or member or super_admin or owner
+						define member: [user] or owner or admin or super_admin
+						define owner: [user]
+						define super_admin: [user] or admin or member`,
+			expected: true,
+		},
+	}
+
+	for name, test := range testCases {
+		t.Run(name, func(t *testing.T) {
+			_, cycleInfo := Writer(test.model)
+			assert.Equal(t, test.expected, cycleInfo.hasCycle)
+			fmt.Println(cycleInfo.cycles)
 		})
 	}
 }

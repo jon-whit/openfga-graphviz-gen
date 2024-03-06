@@ -18,7 +18,7 @@ func main() {
 		log.Fatalf("failed to read model file: %v", err)
 	}
 
-	result := Writer(string(bytes))
+	result, _ := Writer(string(bytes))
 
 	var writer io.Writer
 	if *outputPathFlag != "" && *outputPathFlag != "-" {

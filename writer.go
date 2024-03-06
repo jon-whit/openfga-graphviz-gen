@@ -10,6 +10,7 @@ import (
 	parser "github.com/openfga/language/pkg/go/transformer"
 	"github.com/openfga/openfga/pkg/typesystem"
 	"gonum.org/v1/gonum/graph/encoding/dot"
+	"gonum.org/v1/gonum/graph/topo"
 )
 
 func buildGraph(model *openfgav1.AuthorizationModel) *dotEncodingGraph {
@@ -124,7 +125,31 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g *dotEncodingGraph, typeNam
 	}
 }
 
-func Writer(modelString string) string {
+type CycleInformation struct {
+	hasCycle bool
+	cycles   [][]string
+}
+
+func parseCycleInformation(g *dotEncodingGraph) *CycleInformation {
+	pathsInCycle := topo.DirectedCyclesIn(g)
+
+	convertedCycles := make([][]string, 0)
+	for _, nodes := range pathsInCycle {
+		inner := make([]string, 0)
+		for _, node := range nodes {
+			inner = append(inner, g.reverseMapping[node.ID()])
+		}
+		convertedCycles = append(convertedCycles, inner)
+	}
+
+	return &CycleInformation{
+		hasCycle: len(pathsInCycle) > 0,
+		cycles:   convertedCycles,
+	}
+}
+
+// Writer returns the DOT of the model and information about cycles in the model
+func Writer(modelString string) (string, *CycleInformation) {
 	model := parser.MustTransformDSLToProto(modelString)
 
 	g := buildGraph(model)
@@ -136,5 +161,5 @@ func Writer(modelString string) string {
 		log.Fatalf("failed to render graph: %v", err)
 	}
 
-	return string(multi)
+	return string(multi), parseCycleInformation(g)
 }

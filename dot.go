@@ -98,26 +98,6 @@ func (g *dotEncodingGraph) AddEdge(from, to string, optionalHeadLabel string) gr
 	}
 }
 
-func (g *dotEncodingGraph) NodeFromLabelToLabel(labelFrom, labelTo string) bool {
-	n1 := g.FindNodeWithLabel(labelFrom)
-	if n1 == nil {
-		return false
-	}
-	n2 := g.FindNodeWithLabel(labelTo)
-	if n2 == nil {
-		return false
-	}
-	return g.HasEdgeFromTo(n1.ID(), n2.ID())
-}
-
-func (g *dotEncodingGraph) FindNodeWithLabel(l string) graph.Node {
-	id, ok := g.mapping[l]
-	if !ok {
-		return nil
-	}
-	return g.Node(id)
-}
-
 var _ encoding.Attributer = (*dotNode)(nil)
 
 type dotNode struct {
