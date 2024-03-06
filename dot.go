@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strconv"
 
 	"gonum.org/v1/gonum/graph"
@@ -12,9 +13,9 @@ import (
 type dotEncodingGraph struct {
 	*multi.DirectedGraph
 	edgeCounter    int
-	mapping        map[string]int64            // node labels to node IDs
-	reverseMapping map[int64]string            // node IDs to node labels
-	lines          map[int64]map[string]string // line IDs to line attrs
+	mapping        map[string]int64    // node labels to node IDs
+	reverseMapping map[int64]string    // node IDs to node labels
+	lines          map[string]*dotLine // "fromID-toID-lineID" to line attrs
 }
 
 var _ encoding.Attributer = (*dotEncodingGraph)(nil)
@@ -25,7 +26,7 @@ func (g *dotEncodingGraph) DOTAttributers() (graph, node, edge encoding.Attribut
 
 func newDotEncodingGraph() *dotEncodingGraph {
 	g := multi.NewDirectedGraph()
-	return &dotEncodingGraph{g, 0, make(map[string]int64), make(map[int64]string), make(map[int64]map[string]string)}
+	return &dotEncodingGraph{g, 0, make(map[string]int64), make(map[int64]string), make(map[string]*dotLine)}
 }
 
 var _ dot.Attributers = (*dotEncodingGraph)(nil)
@@ -55,7 +56,10 @@ func (g *dotEncodingGraph) NewNode() *dotNode {
 }
 
 func (g *dotEncodingGraph) NewLine(from, to graph.Node) *dotLine {
-	return &dotLine{Line: g.DirectedGraph.NewLine(from, to), attrs: make(map[string]string)}
+	line := g.DirectedGraph.NewLine(from, to)
+	dotLine := &dotLine{Line: line, attrs: make(map[string]string)}
+	g.lines[fmt.Sprintf("%v-%v-%v", from.ID(), to.ID(), line.ID())] = dotLine
+	return dotLine
 }
 
 func (g *dotEncodingGraph) AddOrGetNode(label string) graph.Node {
@@ -80,7 +84,7 @@ func (g *dotEncodingGraph) AddEdge(from, to string, optionalHeadLabel, optionalS
 			break
 		}
 		e := existingLinesIter.Line()
-		if g.lines[e.ID()]["headlabel"] == optionalHeadLabel {
+		if g.lines[fmt.Sprintf("%v-%v-%v", n1.ID(), n2.ID(), e.ID())].attrs["headlabel"] == optionalHeadLabel {
 			// duplicate!
 			return nil
 		}
@@ -90,9 +94,12 @@ func (g *dotEncodingGraph) AddEdge(from, to string, optionalHeadLabel, optionalS
 	edge := g.NewLine(n1, n2)
 	g.DirectedGraph.SetLine(edge)
 	edge.attrs["label"] = strconv.Itoa(g.edgeCounter)
-	edge.attrs["headlabel"] = optionalHeadLabel
-	edge.attrs["style"] = optionalStyle
-	g.lines[edge.ID()] = edge.attrs
+	if optionalHeadLabel != "" {
+		edge.attrs["headlabel"] = optionalHeadLabel
+	}
+	if optionalStyle != "" {
+		edge.attrs["style"] = optionalStyle
+	}
 	return &dotLine{
 		Line:  edge,
 		attrs: edge.attrs,

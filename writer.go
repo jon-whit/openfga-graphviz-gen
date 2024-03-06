@@ -126,26 +126,48 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g *dotEncodingGraph, typeNam
 }
 
 type CycleInformation struct {
-	hasCycle bool
-	cycles   [][]string
+	// cycles that have at least one edge that is NOT a computed relation
+	// They are dangerous to call Check API on.
+	possibleCycles int
+	// cycles that involve computed relations only.
+	// They should be forbidden when calling WriteAuthorizationModel API.
+	definitiveCycles int
+	cycles           [][]string
 }
 
 func parseCycleInformation(g *dotEncodingGraph) *CycleInformation {
-	pathsInCycle := topo.DirectedCyclesIn(g)
+	result := &CycleInformation{}
+	pathsInCycles := topo.DirectedCyclesIn(g)
 
+	// convertedCycles has nicely formatted nodes, like "document#viewer"
 	convertedCycles := make([][]string, 0)
-	for _, nodes := range pathsInCycle {
+	for _, nodesInCycle := range pathsInCycles {
 		inner := make([]string, 0)
-		for _, node := range nodes {
+		for i, node := range nodesInCycle {
+			from := node.ID()
 			inner = append(inner, g.reverseMapping[node.ID()])
+			if i != len(nodesInCycle)-1 {
+				to := nodesInCycle[i+1].ID()
+				lines := g.Lines(from, to)
+				for {
+					if !lines.Next() {
+						break
+					}
+					l := lines.Line()
+					if g.lines[fmt.Sprintf("%v-%v-%v", from, to, l.ID())].attrs["style"] != "dashed" {
+						// it's not a computed userset, so it's a possible cycle, not a definitive one
+						result.possibleCycles++
+						break
+					}
+				}
+			}
 		}
 		convertedCycles = append(convertedCycles, inner)
 	}
 
-	return &CycleInformation{
-		hasCycle: len(pathsInCycle) > 0,
-		cycles:   convertedCycles,
-	}
+	result.cycles = convertedCycles
+	result.definitiveCycles = len(result.cycles) - result.possibleCycles
+	return result
 }
 
 // Writer returns the DOT of the model and information about cycles in the model

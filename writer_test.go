@@ -53,40 +53,16 @@ rankdir=BT
 // Edge definitions.
 2 -> 6 [
 label=6
-headlabel=""
+style=dashed
 ];
-3 -> 2 [
-label=1
-headlabel=""
-];
-3 -> 6 [
-label=3
-headlabel=""
-];
-3 -> 8 [
-label=9
-headlabel=""
-];
-3 -> 9 [
-label=8
-headlabel=""
-];
-5 -> 4 [
-label=2
-headlabel=""
-];
-7 -> 6 [
-label=4
-headlabel=""
-];
-8 -> 6 [
-label=5
-headlabel=""
-];
-8 -> 8 [
-label=10
-headlabel=""
-];
+3 -> 2 [label=1];
+3 -> 6 [label=3];
+3 -> 8 [label=9];
+3 -> 9 [label=8];
+5 -> 4 [label=2];
+7 -> 6 [label=4];
+8 -> 6 [label=5];
+8 -> 8 [label=10];
 9 -> 6 [
 label=7
 headlabel="(document#parent)"
@@ -117,19 +93,13 @@ rankdir=BT
 // Edge definitions.
 2 -> 5 [
 label=3
-headlabel=""
+style=dashed
 ];
-3 -> 2 [
-label=1
-headlabel=""
-];
-3 -> 4 [
-label=2
-headlabel=""
-];
+3 -> 2 [label=1];
+3 -> 4 [label=2];
 4 -> 5 [
 label=4
-headlabel=""
+style=dashed
 ];
 }`,
 		},
@@ -156,20 +126,14 @@ rankdir=BT
 
 // Edge definitions.
 2 -> 5 [
-headlabel=""
 label=3
+style=dashed
 ];
-3 -> 2 [
-label=1
-headlabel=""
-];
-3 -> 4 [
-label=2
-headlabel=""
-];
+3 -> 2 [label=1];
+3 -> 4 [label=2];
 4 -> 5 [
 label=4
-headlabel=""
+style=dashed
 ];
 }`,
 		},
@@ -211,18 +175,9 @@ rankdir=BT
 7 [label=" user[with condition2]"];
 
 // Edge definitions.
-3 -> 2 [
-label=1
-headlabel=""
-];
-5 -> 4 [
-label=2
-headlabel=""
-];
-7 -> 6 [
-label=3
-headlabel=""
-];
+3 -> 2 [label=1];
+5 -> 4 [label=2];
+7 -> 6 [label=3];
 }`,
 		},
 		`multigraph`: {
@@ -255,14 +210,8 @@ rankdir=BT
 8 [label="transition#start"];
 
 // Edge definitions.
-0 -> 7 [
-label=5
-headlabel=""
-];
-0 -> 8 [
-headlabel=""
-label=6
-];
+0 -> 7 [label=5];
+0 -> 8 [label=6];
 2 -> 6 [
 label=3
 headlabel="(transition#start)"
@@ -271,14 +220,8 @@ headlabel="(transition#start)"
 label=4
 headlabel="(transition#end)"
 ];
-3 -> 2 [
-label=1
-headlabel=""
-];
-3 -> 6 [
-label=2
-headlabel=""
-];
+3 -> 2 [label=1];
+3 -> 6 [label=2];
 }`,
 		},
 	}
@@ -290,17 +233,18 @@ headlabel=""
 			expectedSorted := getSorted(test.expectedOutput)
 			diff := cmp.Diff(expectedSorted, actualSorted)
 
-			require.Empty(t, diff, "expected %s, got %s", test.expectedOutput, actualDOT)
+			require.Empty(t, diff, "expectedDefinitiveCycle %s, got %s", test.expectedOutput, actualDOT)
 		})
 	}
 }
 
 func TestWriter_Cycles(t *testing.T) {
 	testCases := map[string]struct {
-		model    string
-		expected bool
+		model                    string
+		expectedPossibleCycles   int
+		expectedDefinitiveCycles int
 	}{
-		`computed_userset_1`: {
+		`computed_userset_1_definitive_cycle`: {
 			model: `
 				model
 					schema 1.1
@@ -308,7 +252,7 @@ func TestWriter_Cycles(t *testing.T) {
 					relations
 						define a: b
 						define b: a`,
-			expected: true,
+			expectedDefinitiveCycles: 1,
 		},
 		`computed_userset_2`: {
 			model: `
@@ -319,7 +263,7 @@ func TestWriter_Cycles(t *testing.T) {
 						define x: y
 						define y: z
 						define z: x`,
-			expected: true,
+			expectedDefinitiveCycles: 1,
 		},
 		`union_1`: {
 			model: `
@@ -331,7 +275,7 @@ func TestWriter_Cycles(t *testing.T) {
 						define x: [user] or y
 						define y: [user] or z
 						define z: [user] or x`,
-			expected: true,
+			expectedDefinitiveCycles: 1,
 		},
 		`union_2`: {
 			model: `
@@ -343,7 +287,7 @@ func TestWriter_Cycles(t *testing.T) {
 						define x: [user] or y
 						define y: [user] or z
 						define z: [user] or x`,
-			expected: true,
+			expectedDefinitiveCycles: 1,
 		},
 		`union_3`: {
 			model: `
@@ -356,7 +300,7 @@ func TestWriter_Cycles(t *testing.T) {
 					define memberA: [user] or member or memberB or memberC
 					define memberB: [user] or member or memberA or memberC
 					define memberC: [user] or member or memberA or memberB`,
-			expected: true,
+			expectedDefinitiveCycles: 20,
 		},
 		`union_4`: {
 			model: `
@@ -369,7 +313,7 @@ func TestWriter_Cycles(t *testing.T) {
 					define member: [user] or owner or admin or super_admin
 					define super_admin: [user] or admin or member or owner
 					define owner: [user]`,
-			expected: true,
+			expectedDefinitiveCycles: 5,
 		},
 		`union_5`: {
 			model: `
@@ -382,9 +326,9 @@ func TestWriter_Cycles(t *testing.T) {
 						define member: [user] or owner or admin or super_admin
 						define super_admin: [user] or admin or member or owner
 						define owner: [user]`,
-			expected: true,
+			expectedDefinitiveCycles: 5,
 		},
-		`union_6`: {
+		`union_6_no_cycles`: {
 			model: `
 				model
 					schema 1.1
@@ -393,7 +337,6 @@ func TestWriter_Cycles(t *testing.T) {
 					relations
 						define editor: [user]
 						define viewer: [document#viewer] or editor`,
-			expected: false,
 		},
 		`intersection_and_union`: {
 			model: `
@@ -405,7 +348,7 @@ func TestWriter_Cycles(t *testing.T) {
 						define x: [user] and y
 						define y: [user] and z
 						define z: [user] or x`,
-			expected: true,
+			expectedDefinitiveCycles: 1,
 		},
 		`exclusion_and_union`: {
 			model: `
@@ -417,7 +360,7 @@ func TestWriter_Cycles(t *testing.T) {
 						define x: [user] but not y
 						define y: [user] but not z
 						define z: [user] or x`,
-			expected: true,
+			expectedDefinitiveCycles: 1,
 		},
 		`many_circular_computed_relations`: {
 			model: `
@@ -436,14 +379,39 @@ func TestWriter_Cycles(t *testing.T) {
 						define member: [user] or owner or admin or super_admin
 						define owner: [user]
 						define super_admin: [user] or admin or member`,
-			expected: true,
+			expectedDefinitiveCycles: 5,
+		},
+		`scenario_1`: {
+			model: `
+				model
+					schema 1.1
+				type user
+				type document
+					relations
+						define viewer: [user, document#viewer] or editor
+						define editor: [user, document#viewer]`,
+			expectedPossibleCycles: 1,
+		},
+		`scenario_2`: {
+			model: `
+				model
+					schema 1.1
+				type user
+				type document
+					relations
+						define editor1: [user, document#viewer1]
+						define viewer2: [document#viewer1] or editor1
+						define viewer1: [user] or viewer2
+						define can_view: viewer1 or editor1`,
+			expectedPossibleCycles: 2,
 		},
 	}
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
 			_, cycleInfo := Writer(test.model)
-			assert.Equal(t, test.expected, cycleInfo.hasCycle)
+			assert.Equal(t, test.expectedPossibleCycles, cycleInfo.possibleCycles)
+			assert.Equal(t, test.expectedDefinitiveCycles, cycleInfo.definitiveCycles)
 			fmt.Println(cycleInfo.cycles)
 		})
 	}
