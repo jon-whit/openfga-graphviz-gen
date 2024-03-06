@@ -72,17 +72,17 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g *dotEncodingGraph, typeNam
 					if assignableRelationRef != "" {
 						assignableRelationNodeName := fmt.Sprintf("%s#%s", assignableType, assignableRelationRef)
 
-						g.AddEdge(assignableRelationNodeName, relationNodeName, "")
+						g.AddEdge(assignableRelationNodeName, relationNodeName, "", "")
 					}
 
 					wildcardRelationRef := assignableRelation.GetWildcard()
 					if wildcardRelationRef != nil {
 						wildcardRelationNodeName := fmt.Sprintf("%s:*", assignableType)
 
-						g.AddEdge(wildcardRelationNodeName, relationNodeName, "")
+						g.AddEdge(wildcardRelationNodeName, relationNodeName, "", "")
 					}
 				} else {
-					g.AddEdge(assignableType, relationNodeName, "")
+					g.AddEdge(assignableType, relationNodeName, "", "")
 				}
 			}
 		case *openfgav1.Userset_ComputedUserset:
@@ -93,7 +93,7 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g *dotEncodingGraph, typeNam
 			}
 
 			rewrittenNodeName := fmt.Sprintf("%s#%s", typeName, rewritten.GetName())
-			g.AddEdge(rewrittenNodeName, relationNodeName, "")
+			g.AddEdge(rewrittenNodeName, relationNodeName, "", "dashed")
 		case *openfgav1.Userset_TupleToUserset:
 			tupleset := rw.TupleToUserset.GetTupleset().GetRelation()
 			rewrittenRelation := rw.TupleToUserset.GetComputedUserset().GetRelation()
@@ -113,7 +113,7 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g *dotEncodingGraph, typeNam
 				rewrittenNodeName := fmt.Sprintf("%s#%s", assignableType, rewrittenRelation)
 				conditionedOnNodeName := fmt.Sprintf("(%s#%s)", typeName, tuplesetRel.GetName())
 
-				g.AddEdge(rewrittenNodeName, relationNodeName, conditionedOnNodeName)
+				g.AddEdge(rewrittenNodeName, relationNodeName, conditionedOnNodeName, "")
 			}
 		case *openfgav1.Userset_Union:
 		case *openfgav1.Userset_Intersection:

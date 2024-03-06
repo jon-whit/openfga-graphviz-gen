@@ -71,7 +71,7 @@ func (g *dotEncodingGraph) AddOrGetNode(label string) graph.Node {
 	return n
 }
 
-func (g *dotEncodingGraph) AddEdge(from, to string, optionalHeadLabel string) graph.Line {
+func (g *dotEncodingGraph) AddEdge(from, to string, optionalHeadLabel, optionalStyle string) graph.Line {
 	n1 := g.AddOrGetNode(from)
 	n2 := g.AddOrGetNode(to)
 	existingLinesIter := g.Lines(n1.ID(), n2.ID())
@@ -91,6 +91,7 @@ func (g *dotEncodingGraph) AddEdge(from, to string, optionalHeadLabel string) gr
 	g.DirectedGraph.SetLine(edge)
 	edge.attrs["label"] = strconv.Itoa(g.edgeCounter)
 	edge.attrs["headlabel"] = optionalHeadLabel
+	edge.attrs["style"] = optionalStyle
 	g.lines[edge.ID()] = edge.attrs
 	return &dotLine{
 		Line:  edge,
