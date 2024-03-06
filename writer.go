@@ -84,8 +84,6 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g *dotEncodingGraph, typeNam
 					g.AddEdge(assignableType, relationNodeName, "")
 				}
 			}
-
-			return nil
 		case *openfgav1.Userset_ComputedUserset:
 			rewrittenRelation := rw.ComputedUserset.GetRelation()
 			rewritten, err := typesys.GetRelation(typeName, rewrittenRelation)
@@ -95,8 +93,6 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g *dotEncodingGraph, typeNam
 
 			rewrittenNodeName := fmt.Sprintf("%s#%s", typeName, rewritten.GetName())
 			g.AddEdge(rewrittenNodeName, relationNodeName, "")
-
-			return nil
 		case *openfgav1.Userset_TupleToUserset:
 			tupleset := rw.TupleToUserset.GetTupleset().GetRelation()
 			rewrittenRelation := rw.TupleToUserset.GetComputedUserset().GetRelation()
@@ -118,32 +114,13 @@ func rewriteHandler(typesys *typesystem.TypeSystem, g *dotEncodingGraph, typeNam
 
 				g.AddEdge(rewrittenNodeName, relationNodeName, conditionedOnNodeName)
 			}
-
-			return nil
 		case *openfgav1.Userset_Union:
-			return nil
 		case *openfgav1.Userset_Intersection:
-			// TODO: handle recursion
-			children := rw.Intersection.GetChild()
-			for _, child := range children {
-				switch childrw := child.Userset.(type) {
-				case *openfgav1.Userset_ComputedUserset:
-					rewrittenRelation := childrw.ComputedUserset.GetRelation()
-					rewritten, err := typesys.GetRelation(typeName, rewrittenRelation)
-					if err != nil {
-						panic(err)
-					}
-
-					rewrittenNodeName := fmt.Sprintf("%s#%s", typeName, rewritten.GetName())
-					g.AddEdge(rewrittenNodeName, relationNodeName, "")
-				}
-			}
-			return nil
 		case *openfgav1.Userset_Difference:
-			return nil
 		default:
 			panic("unexpected userset rewrite type encountered")
 		}
+		return nil
 	}
 }
 
